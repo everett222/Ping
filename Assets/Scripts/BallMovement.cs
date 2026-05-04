@@ -2,31 +2,51 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro; // NEW: This lets Unity talk to your TextMeshPro text!
+using UnityEngine.SceneManagement;
 
 public class BallMovement : MonoBehaviour
 {
     [SerializeField] private float initialSpeed = 10;
     [SerializeField] private float speedIncrease = 0.25f;
+    [SerializeField] private float edgeSpeedBonus = 10f; 
     [SerializeField] private Text playerScore;
     [SerializeField] private Text AIScore;
 
+    [Header("Winner Screen UI")]
+    [SerializeField] private GameObject winnerScreen; 
+    [SerializeField] private TextMeshProUGUI winnerText; // UPDATED: Now looks for TextMeshPro!
+
     private int hitCounter;
     private Rigidbody2D rb;
+    private float currentMaxSpeed; 
+
+    private int pointCap;
+    private int gameMode;
+    private bool gameOver = false;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        
+        pointCap = PlayerPrefs.GetInt("PointCap", 21);
+        gameMode = PlayerPrefs.GetInt("GameMode", 0);
+
+        // Make sure the winner screen is hidden when the game starts
+        if (winnerScreen != null) winnerScreen.SetActive(false);
+
         Invoke("StartBall", 2f);
     }
 
     private void FixedUpdate()
     {
-        rb.linearVelocity = Vector2.ClampMagnitude(rb.linearVelocity, initialSpeed + (speedIncrease * hitCounter));
+        rb.linearVelocity = Vector2.ClampMagnitude(rb.linearVelocity, currentMaxSpeed);
     }
 
     private void StartBall()
     {
-        rb.linearVelocity = new Vector2(-1, 0) * (initialSpeed + speedIncrease * hitCounter);
+        currentMaxSpeed = initialSpeed + (speedIncrease * hitCounter);
+        rb.linearVelocity = new Vector2(-1, 0) * currentMaxSpeed;
     }
 
     private void ResetBall()
@@ -46,32 +66,23 @@ public class BallMovement : MonoBehaviour
 
         float xDirection, yDirection;
         
-        // Check which side of the screen the ball is on to send it the other way
-        if(transform.position.x > 0)
-        {
-            xDirection = -1;
-        }
-        else
-        {
-            xDirection = 1;
-        }
+        if(transform.position.x > 0) xDirection = -1;
+        else xDirection = 1;
 
-        // Calculate the Y angle based on where the ball hit the paddle
         yDirection = (ballPos.y - playerPos.y) / myObject.GetComponent<Collider2D>().bounds.size.y;
         
-        // Prevent the ball from bouncing perfectly straight horizontally
-        if(yDirection == 0)
-        {
-            yDirection = 0.25f;
-        }
+        if(yDirection == 0) yDirection = 0.25f;
 
-        rb.linearVelocity = new Vector2(xDirection, yDirection) * (initialSpeed + (speedIncrease * hitCounter));
+        float distanceFromCenter = Mathf.Abs(yDirection);
+        currentMaxSpeed = initialSpeed + (speedIncrease * hitCounter) + (distanceFromCenter * edgeSpeedBonus);
+
+        Vector2 bounceDirection = new Vector2(xDirection, yDirection).normalized;
+        rb.linearVelocity = bounceDirection * currentMaxSpeed;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Check if the object the ball collided with is named "Player" or "AI"
-        if(collision.gameObject.name == "Player" || collision.gameObject.name == "AI")
+        if(collision.gameObject.CompareTag("Paddle"))
         {
             PlayerBounce(collision.transform);
         }
@@ -79,15 +90,67 @@ public class BallMovement : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
+        if (gameOver) return; 
+
         if(transform.position.x > 0)
         {
-            ResetBall();
             playerScore.text = (int.Parse(playerScore.text) + 1).ToString();
+            CheckWinCondition();
         }
         else if(transform.position.x < 0)
         {
-            ResetBall();
             AIScore.text = (int.Parse(AIScore.text) + 1).ToString();
+            CheckWinCondition();
         }
+    }
+
+    private void CheckWinCondition()
+    {
+        int p1Score = int.Parse(playerScore.text);
+        int p2Score = int.Parse(AIScore.text);
+
+        if (p1Score >= pointCap || p2Score >= pointCap)
+        {
+            if (gameMode != 1) 
+            {
+                if (Mathf.Abs(p1Score - p2Score) >= 2) EndGame(p1Score, p2Score);
+                else ResetBall();
+            }
+            else 
+            {
+                EndGame(p1Score, p2Score);
+            }
+        }
+        else
+        {
+            ResetBall();
+        }
+    }
+
+    private void EndGame(int p1Score, int p2Score)
+    {
+        gameOver = true;
+        rb.linearVelocity = Vector2.zero; 
+        transform.position = Vector2.zero; 
+
+        // Turn on the Winner Screen UI
+        winnerScreen.SetActive(true);
+
+        // Decide who won based on the scores
+        if (p1Score > p2Score)
+        {
+            winnerText.text = "Winner: Chilli Playa!";
+        }
+        else
+        {
+            if (gameMode == 1) winnerText.text = "Winner: Playa 2!";
+            else winnerText.text = "Winner: AI!";
+        }
+    }
+
+    // Function for your "Main Menu" button to use
+    public void LoadMainMenu()
+    {
+        SceneManager.LoadScene("MainMenu"); 
     }
 }
