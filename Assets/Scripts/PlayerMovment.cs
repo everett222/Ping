@@ -32,7 +32,7 @@ public class PlayerMovement : MonoBehaviour
             else if (gameMode == 0)
             {
                 isAI = true; 
-                movementSpeed = 5f;  // EASY AI: very slow
+                movementSpeed = 6f;  // EASY AI: very slow
             }
             else if (gameMode == 2)
             {
@@ -59,7 +59,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private void PlayerControl()
+   private void PlayerControl()
     {
         // Player 1 (Left Paddle) uses W and S keys
         if (!isRightPaddle)
@@ -68,15 +68,14 @@ public class PlayerMovement : MonoBehaviour
             else if (Input.GetKey(KeyCode.S)) playerMove = new Vector2(0, -1);
             else playerMove = new Vector2(0, 0);
         }
-        // Player 2 (Right Paddle) uses Up and Down Arrow keys
+        // Player 2 (Right Paddle) uses I and K keys
         else
         {
-            if (Input.GetKey(KeyCode.UpArrow)) playerMove = new Vector2(0, 1);
-            else if (Input.GetKey(KeyCode.DownArrow)) playerMove = new Vector2(0, -1);
+            if (Input.GetKey(KeyCode.I)) playerMove = new Vector2(0, 1);
+            else if (Input.GetKey(KeyCode.K)) playerMove = new Vector2(0, -1);
             else playerMove = new Vector2(0, 0);
         }
     }
-
     private void AIControl()
     {
         if (ball.transform.position.y > transform.position.y + 0.5f)

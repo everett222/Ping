@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // NEW: This lets Unity talk to your TextMeshPro text!
+using TMPro; 
 using UnityEngine.SceneManagement;
 
 public class BallMovement : MonoBehaviour
@@ -15,25 +15,33 @@ public class BallMovement : MonoBehaviour
 
     [Header("Winner Screen UI")]
     [SerializeField] private GameObject winnerScreen; 
-    [SerializeField] private TextMeshProUGUI winnerText; // UPDATED: Now looks for TextMeshPro!
+    [SerializeField] private TextMeshProUGUI winnerText; 
 
     private int hitCounter;
     private Rigidbody2D rb;
+    private TrailRenderer trail; // NEW: To control the neon trail
     private float currentMaxSpeed; 
 
     private int pointCap;
     private int gameMode;
     private bool gameOver = false;
+    
+    private float serveDirection = -1f; 
+    private float lastHitTime = 0f;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        trail = GetComponent<TrailRenderer>(); // NEW: Link the trail component
         
         pointCap = PlayerPrefs.GetInt("PointCap", 21);
         gameMode = PlayerPrefs.GetInt("GameMode", 0);
 
-        // Make sure the winner screen is hidden when the game starts
         if (winnerScreen != null) winnerScreen.SetActive(false);
+
+        // Randomize the first serve direction
+        if (Random.value > 0.5f) serveDirection = 1f;
+        else serveDirection = -1f;
 
         Invoke("StartBall", 2f);
     }
@@ -45,14 +53,24 @@ public class BallMovement : MonoBehaviour
 
     private void StartBall()
     {
+        // Turn the trail back ON when the ball starts moving
+        if (trail != null) trail.emitting = true;
+
         currentMaxSpeed = initialSpeed + (speedIncrease * hitCounter);
-        rb.linearVelocity = new Vector2(-1, 0) * currentMaxSpeed;
+        rb.linearVelocity = new Vector2(serveDirection, 0) * currentMaxSpeed;
     }
 
     private void ResetBall()
     {
-        rb.linearVelocity = new Vector2(0, 0);
-        transform.position = new Vector2(0, 0);
+        // NEW: Clear the trail and turn it OFF so it doesn't draw a line during teleport
+        if (trail != null) 
+        {
+            trail.Clear(); 
+            trail.emitting = false;
+        }
+
+        rb.linearVelocity = Vector2.zero;
+        transform.position = Vector2.zero;
         hitCounter = 0;
         Invoke("StartBall", 2f);
     }
@@ -60,17 +78,11 @@ public class BallMovement : MonoBehaviour
     private void PlayerBounce(Transform myObject)
     {
         hitCounter++;
-
         Vector2 ballPos = transform.position;
         Vector2 playerPos = myObject.position;
 
-        float xDirection, yDirection;
-        
-        if(transform.position.x > 0) xDirection = -1;
-        else xDirection = 1;
-
-        yDirection = (ballPos.y - playerPos.y) / myObject.GetComponent<Collider2D>().bounds.size.y;
-        
+        float xDirection = (transform.position.x > 0) ? -1 : 1;
+        float yDirection = (ballPos.y - playerPos.y) / myObject.GetComponent<Collider2D>().bounds.size.y;
         if(yDirection == 0) yDirection = 0.25f;
 
         float distanceFromCenter = Mathf.Abs(yDirection);
@@ -84,7 +96,11 @@ public class BallMovement : MonoBehaviour
     {
         if(collision.gameObject.CompareTag("Paddle"))
         {
-            PlayerBounce(collision.transform);
+            if (Time.time > lastHitTime + 0.1f)
+            {
+                lastHitTime = Time.time; 
+                PlayerBounce(collision.transform);
+            }
         }
     }
 
@@ -92,14 +108,19 @@ public class BallMovement : MonoBehaviour
     {
         if (gameOver) return; 
 
+        // If someone scores, turn off the trail immediately!
+        if (trail != null) trail.emitting = false;
+
         if(transform.position.x > 0)
         {
             playerScore.text = (int.Parse(playerScore.text) + 1).ToString();
+            serveDirection = -1f;
             CheckWinCondition();
         }
         else if(transform.position.x < 0)
         {
             AIScore.text = (int.Parse(AIScore.text) + 1).ToString();
+            serveDirection = 1f; 
             CheckWinCondition();
         }
     }
@@ -111,46 +132,27 @@ public class BallMovement : MonoBehaviour
 
         if (p1Score >= pointCap || p2Score >= pointCap)
         {
-            if (gameMode != 1) 
-            {
-                if (Mathf.Abs(p1Score - p2Score) >= 2) EndGame(p1Score, p2Score);
-                else ResetBall();
-            }
-            else 
-            {
-                EndGame(p1Score, p2Score);
-            }
+            if (Mathf.Abs(p1Score - p2Score) >= 2) EndGame(p1Score, p2Score);
+            else ResetBall();
         }
-        else
-        {
-            ResetBall();
-        }
+        else ResetBall();
     }
 
     private void EndGame(int p1Score, int p2Score)
     {
         gameOver = true;
+        if (trail != null) trail.emitting = false;
         rb.linearVelocity = Vector2.zero; 
         transform.position = Vector2.zero; 
-
-        // Turn on the Winner Screen UI
         winnerScreen.SetActive(true);
 
-        // Decide who won based on the scores
         if (p1Score > p2Score)
         {
-            winnerText.text = "Winner: Chilli Playa!";
+            winnerText.text = (gameMode == 1) ? "WINNER : PLAYER 1" : "WINNER : PLAYER"; 
         }
         else
         {
-            if (gameMode == 1) winnerText.text = "Winner: Playa 2!";
-            else winnerText.text = "Winner: AI!";
+            winnerText.text = (gameMode == 1) ? "WINNER : PLAYER 2" : "WINNER : AI"; 
         }
-    }
-
-    // Function for your "Main Menu" button to use
-    public void LoadMainMenu()
-    {
-        SceneManager.LoadScene("MainMenu"); 
     }
 }
